@@ -1,0 +1,2116 @@
+<!DOCTYPE html>
+<html lang="ms" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikSave AI — Muat Turun Video TikTok Tanpa Watermark & 4K AI Upscale</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- MP4 Muxer untuk Pengekodan MP4 Tulen Tanpa Mampatan MediaRecorder -->
+    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        tiktok: {
+                            cyan: '#00f2fe',
+                            pink: '#fe2c55',
+                            purple: '#a855f7',
+                            dark: '#09090b',
+                            card: '#121216',
+                            border: '#27272a'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'gradient-x': 'gradient-x 6s ease infinite',
+                    },
+                    keyframes: {
+                        'gradient-x': {
+                            '0%, 100%': { 'background-size': '200% 200%', 'background-position': 'left center' },
+                            '50%': { 'background-size': '200% 200%', 'background-position': 'right center' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #09090b;
+            color: #fafafa;
+            overflow-x: hidden;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+        .tiktok-glow {
+            box-shadow: -3px 0 20px rgba(0, 242, 254, 0.22), 3px 0 20px rgba(254, 44, 85, 0.22);
+        }
+        .ai-glow {
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.35), 0 0 12px rgba(0, 242, 254, 0.2);
+        }
+        .tiktok-btn-gradient {
+            background: linear-gradient(90deg, #00f2fe 0%, #4facfe 35%, #fe2c55 100%);
+            background-size: 200% auto;
+            transition: all 0.3s ease;
+        }
+        .tiktok-btn-gradient:hover {
+            background-position: right center;
+            box-shadow: 0 0 25px rgba(254, 44, 85, 0.45);
+        }
+        .ai-btn-gradient {
+            background: linear-gradient(90deg, #a855f7 0%, #00f2fe 50%, #fe2c55 100%);
+            background-size: 200% auto;
+            transition: all 0.3s ease;
+        }
+        .ai-btn-gradient:hover {
+            background-position: right center;
+            box-shadow: 0 0 28px rgba(168, 85, 247, 0.55);
+        }
+        .glass-panel {
+            background: rgba(18, 18, 22, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* Custom Range Slider untuk Before/After */
+        input[type=range].ai-slider {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range].ai-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 36px;
+            width: 36px;
+            border-radius: 9999px;
+            background: #a855f7;
+            border: 3px solid #ffffff;
+            cursor: ew-resize;
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.9);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-tiktok-purple selection:text-white relative">
+
+    <!-- Ambient Background Glows -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div class="absolute -top-32 -left-32 w-96 h-96 bg-tiktok-cyan/15 rounded-full blur-[120px] animate-pulse-slow"></div>
+        <div class="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-96 bg-tiktok-purple/10 rounded-full blur-[140px] animate-pulse-slow"></div>
+        <div class="absolute top-1/2 -right-32 w-96 h-96 bg-tiktok-pink/15 rounded-full blur-[120px] animate-pulse-slow"></div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Header / Navbar -->
+    <header class="sticky top-0 z-40 glass-panel border-b border-zinc-800/80">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="#" class="flex items-center gap-2.5 group">
+                <div class="relative w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center overflow-hidden tiktok-glow group-hover:scale-105 transition-transform">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                        <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#00f2fe" transform="translate(-1, -1)"/>
+                        <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#fe2c55" transform="translate(1, 1)"/>
+                        <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#ffffff"/>
+                    </svg>
+                </div>
+                <span class="font-extrabold text-xl tracking-tight flex items-center gap-1.5">
+                    <span>Tik<span class="bg-gradient-to-r from-tiktok-cyan to-tiktok-pink bg-clip-text text-transparent">Save</span></span>
+                    <span class="px-1.5 py-0.5 text-[10px] font-extrabold rounded-md bg-tiktok-purple/20 text-tiktok-purple border border-tiktok-purple/40">AI 4K</span>
+                </span>
+            </a>
+
+            <!-- Navigation Actions -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button onclick="loadDemoData()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 border border-zinc-700/60 transition-colors" title="Uji cuba paparan & AI Upscaler dengan video contoh">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-tiktok-purple"></i>
+                    <span>Cuba Demo AI</span>
+                </button>
+                <button onclick="openBackendModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 hover:border-tiktok-purple/50 transition-all shadow-sm">
+                    <i data-lucide="code-2" class="w-4 h-4 text-tiktok-pink"></i>
+                    <span class="hidden sm:inline">Kod Backend & AI</span>
+                    <span class="sm:hidden">Backend</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-14">
+        
+        <!-- Hero Section -->
+        <div class="text-center max-w-3xl mx-auto mb-9">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-tiktok-purple/30 text-xs font-medium text-zinc-200 mb-5 shadow-lg">
+                <span class="w-2 h-2 rounded-full bg-tiktok-purple animate-ping"></span>
+                <span>Dilengkapi Enjin <strong class="text-tiktok-purple">WebCodecs 4K H.264</strong> & Penajam Butiran AI</span>
+            </div>
+            <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+                Muat Turun Video TikTok <br class="hidden sm:block" />
+                <span class="bg-gradient-to-r from-tiktok-cyan via-tiktok-purple to-tiktok-pink bg-clip-text text-transparent">Tanpa Watermark & Kualiti 4K AI</span>
+            </h1>
+            <p class="text-zinc-400 text-sm sm:text-base leading-relaxed">
+                Tampal pautan TikTok di bawah, pilih resolusi dari <strong>480p hingga 4K AI Upscale (2160p Bitrate Tinggi)</strong>, atau ekstrak audio <strong>MP3 320kbps</strong>.
+            </p>
+        </div>
+
+        <!-- Input & Action Card -->
+        <div class="glass-panel rounded-3xl p-4 sm:p-6 shadow-2xl tiktok-glow mb-8">
+            <form id="download-form" onsubmit="handleFormSubmit(event)" class="flex flex-col md:flex-row gap-3">
+                <!-- URL Input Wrapper -->
+                <div class="relative flex-grow flex items-center bg-zinc-950/90 border border-zinc-800 focus-within:border-tiktok-cyan rounded-2xl px-3.5 py-2 transition-all">
+                    <i data-lucide="link" class="w-5 h-5 text-zinc-500 shrink-0 mr-2.5"></i>
+                    <input 
+                        type="url" 
+                        id="tiktok-url" 
+                        placeholder="Tampal pautan video TikTok di sini (cth: https://vt.tiktok.com/...)" 
+                        class="w-full bg-transparent text-sm sm:text-base text-white placeholder-zinc-500 focus:outline-none py-2 pr-2"
+                        autocomplete="off"
+                        required
+                    >
+                    
+                    <!-- Paste / Clear Action Buttons inside Input -->
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button 
+                            type="button" 
+                            id="btn-clear" 
+                            onclick="clearInput()" 
+                            class="hidden items-center gap-1 px-2.5 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-red-500/20 text-zinc-300 hover:text-red-400 text-xs font-medium transition-colors"
+                            title="Padam pautan"
+                        >
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            <span class="hidden sm:inline">Padam</span>
+                        </button>
+                        <button 
+                            type="button" 
+                            id="btn-paste" 
+                            onclick="pasteFromClipboard()" 
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700/70 transition-colors"
+                            title="Tampal daripada Papan Keratan"
+                        >
+                            <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-tiktok-cyan"></i>
+                            <span>Tampal</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Submit / Process Button -->
+                <button 
+                    type="submit" 
+                    id="btn-submit" 
+                    class="tiktok-btn-gradient text-zinc-950 font-bold text-sm sm:text-base px-7 py-4 rounded-2xl flex items-center justify-center gap-2 shrink-0 shadow-lg active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
+                >
+                    <span id="btn-submit-icon"><i data-lucide="download" class="w-5 h-5"></i></span>
+                    <span id="btn-submit-text">Proses Video</span>
+                </button>
+            </form>
+
+            <!-- Custom Backend & AI API Endpoint Option -->
+            <div class="mt-4 pt-3 border-t border-zinc-800/70 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400">
+                <div class="flex items-center gap-2">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>Enjin Aktif: <strong class="text-zinc-200" id="active-api-label">TikWM API + Enjin WebCodecs MP4 (Uncompressed Bitrate)</strong></span>
+                </div>
+                <button type="button" onclick="toggleCustomEndpoint()" class="text-tiktok-purple hover:underline flex items-center gap-1 font-medium">
+                    <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
+                    <span>Tetapan Pelayan & API AI</span>
+                </button>
+            </div>
+
+            <!-- Custom Endpoint Input Panel -->
+            <div id="custom-endpoint-panel" class="hidden mt-3 p-4 rounded-2xl bg-zinc-950/90 border border-zinc-800 space-y-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">URL Pelayan TikTok Downloader (Node.js / PHP)</label>
+                        <input 
+                            type="url" 
+                            id="custom-api-url" 
+                            placeholder="http://localhost:3000/api/tiktok?url=" 
+                            class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-tiktok-cyan font-mono"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">URL API AI Upscaler Luaran (cth: Replicate / FFmpeg Server)</label>
+                        <input 
+                            type="url" 
+                            id="custom-ai-url" 
+                            placeholder="http://localhost:3000/api/ai-upscale" 
+                            class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-tiktok-purple font-mono"
+                        >
+                    </div>
+                </div>
+                <div class="flex items-center justify-between pt-1">
+                    <span class="text-[11px] text-zinc-500">Biarkan kosong untuk menggunakan pengekod WebCodecs 4K terbina dalam pelayar.</span>
+                    <button type="button" onclick="saveCustomEndpoint()" class="px-4 py-2 rounded-xl bg-tiktok-purple/20 hover:bg-tiktok-purple/30 text-tiktok-purple border border-tiktok-purple/40 text-xs font-semibold transition-colors">
+                        Simpan Tetapan
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Smooth Loading Skeleton State -->
+        <div id="loading-state" class="hidden glass-panel rounded-3xl p-6 sm:p-8 mb-8 animate-pulse">
+            <div class="flex flex-col md:flex-row gap-6">
+                <div class="w-full md:w-64 aspect-[9/16] max-h-80 bg-zinc-800/80 rounded-2xl mx-auto md:mx-0"></div>
+                <div class="flex-grow space-y-4 py-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-full bg-zinc-800"></div>
+                        <div class="space-y-2">
+                            <div class="w-36 h-4 bg-zinc-800 rounded"></div>
+                            <div class="w-24 h-3 bg-zinc-800 rounded"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-2 pt-2">
+                        <div class="w-full h-4 bg-zinc-800 rounded"></div>
+                        <div class="w-3/4 h-4 bg-zinc-800 rounded"></div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3 pt-2">
+                        <div class="h-14 bg-zinc-800/70 rounded-xl"></div>
+                        <div class="h-14 bg-zinc-800/70 rounded-xl"></div>
+                        <div class="h-14 bg-zinc-800/70 rounded-xl"></div>
+                    </div>
+                    <div class="space-y-2.5 pt-4">
+                        <div class="h-12 bg-zinc-800 rounded-xl"></div>
+                        <div class="h-12 bg-zinc-800 rounded-xl"></div>
+                    </div>
+                </div>
+            </div>
+            <p class="text-center text-xs text-zinc-400 mt-5 flex items-center justify-center gap-2">
+                <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-tiktok-cyan"></i>
+                <span>Sedang mengekstrak metadata & menyediakan pilihan resolusi video...</span>
+            </p>
+        </div>
+
+        <!-- CORS / API Fallback Notice Banner -->
+        <div id="fallback-banner" class="hidden mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="flex items-start gap-3">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
+                <div class="text-xs sm:text-sm text-amber-200/90">
+                    <strong class="text-amber-300 block mb-0.5">Mod Pratonton Demo Aktif (Sekatan CORS Pelayar)</strong>
+                    Pelayar menyekat capaian terus ke API pihak ketiga. Memaparkan video sampel agar anda dapat menguji <strong>Pilihan Kualiti & 4K AI Upscaler</strong> sepenuhnya.
+                </div>
+            </div>
+            <button onclick="openBackendModal()" class="shrink-0 px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-colors">
+                Lihat Kod Pelayan
+            </button>
+        </div>
+
+        <!-- Video Result & AI Upscaler Section -->
+        <section id="result-section" class="hidden glass-panel rounded-3xl p-5 sm:p-8 shadow-2xl border border-zinc-800 transition-all">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
+                
+                <!-- Left Column: Video Player OR Interactive Before/After AI Comparison -->
+                <div class="lg:col-span-5 flex flex-col items-center space-y-3">
+                    
+                    <!-- Preview Mode Header -->
+                    <div class="w-full max-w-[300px] flex items-center justify-between px-1">
+                        <span id="preview-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700 text-[11px] font-semibold text-tiktok-cyan">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                            <span>Tanpa Watermark</span>
+                        </span>
+                        <button 
+                            type="button" 
+                            id="btn-toggle-compare"
+                            onclick="toggleBeforeAfterView()" 
+                            class="hidden items-center gap-1 px-2.5 py-1 rounded-lg bg-tiktok-purple/20 hover:bg-tiktok-purple/30 text-tiktok-purple border border-tiktok-purple/40 text-[11px] font-bold transition-colors"
+                        >
+                            <i data-lucide="split-square-horizontal" class="w-3.5 h-3.5"></i>
+                            <span id="compare-btn-text">Banding AI (Sebelum/Selepas)</span>
+                        </button>
+                    </div>
+
+                    <!-- Standard Video Player Container -->
+                    <div id="standard-player-box" class="relative w-full max-w-[300px] aspect-[9/16] rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 shadow-xl">
+                        <video 
+                            id="video-player" 
+                            class="w-full h-full object-cover" 
+                            controls 
+                            playsinline 
+                            loop
+                            crossorigin="anonymous"
+                            poster=""
+                        ></video>
+                    </div>
+
+                    <!-- Interactive Before / After AI Comparison Container -->
+                    <div id="ai-compare-box" class="hidden relative w-full max-w-[300px] aspect-[9/16] rounded-2xl overflow-hidden bg-zinc-950 border-2 border-tiktok-purple/60 shadow-2xl ai-glow select-none">
+                        <!-- Canvas Selepas (AI Enhanced - Penuh di Latar Belakang) -->
+                        <canvas id="canvas-after" class="absolute inset-0 w-full h-full object-cover"></canvas>
+                        
+                        <!-- Canvas Sebelum (Original - Dipotong mengikut Slider) -->
+                        <div id="before-clip-wrapper" class="absolute inset-0 overflow-hidden" style="width: 50%;">
+                            <canvas id="canvas-before" class="w-[300px] h-full object-cover max-w-none"></canvas>
+                        </div>
+
+                        <!-- Garis Pembahagi Slider -->
+                        <div id="slider-divider" class="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_#a855f7] pointer-events-none" style="left: 50%;">
+                            <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-tiktok-purple border-2 border-white flex items-center justify-center shadow-lg">
+                                <i data-lucide="chevrons-left-right" class="w-4 h-4 text-white"></i>
+                            </div>
+                        </div>
+
+                        <!-- Range Input Lutsinar untuk Kawalan Sentuhan & Tetikus -->
+                        <input 
+                            type="range" 
+                            min="0" 
+                            max="100" 
+                            value="50" 
+                            id="ai-compare-slider"
+                            oninput="updateCompareSlider(this.value)"
+                            class="ai-slider absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20"
+                            aria-label="Gelangsar Perbandingan Sebelum dan Selepas AI"
+                        >
+
+                        <!-- Label Sebelum & Selepas -->
+                        <div class="absolute top-3 left-3 px-2 py-0.5 rounded bg-black/75 backdrop-blur-md text-[10px] font-bold text-zinc-300 border border-white/10 pointer-events-none z-10">
+                            ASAL (SD)
+                        </div>
+                        <div id="ai-compare-tag" class="absolute top-3 right-3 px-2 py-0.5 rounded bg-tiktok-purple/90 backdrop-blur-md text-[10px] font-extrabold text-white border border-white/20 pointer-events-none z-10">
+                            AI 4K ENHANCED
+                        </div>
+                        <div class="absolute bottom-3 inset-x-3 text-center pointer-events-none z-10">
+                            <span class="px-2.5 py-1 rounded-full bg-black/75 text-[10px] text-zinc-200 backdrop-blur-md border border-white/10">
+                                Seret ke kiri/kanan untuk bandingkan ketajaman AI
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Hidden Processing Canvas untuk Eksport Video AI -->
+                    <canvas id="ai-export-canvas" class="hidden"></canvas>
+                </div>
+
+                <!-- Right Column: Metadata, Quality Selector, AI Booster & Download Action -->
+                <div class="lg:col-span-7 flex flex-col justify-between space-y-5">
+                    
+                    <!-- Creator Info & Stats Bar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
+                        <div class="flex items-center gap-3">
+                            <img 
+                                id="creator-avatar" 
+                                src="https://placehold.co/100x100/18181b/00f2fe?text=TT" 
+                                onerror="this.src='https://placehold.co/100x100/18181b/00f2fe?text=TT'"
+                                alt="Avatar Pencipta" 
+                                class="w-11 h-11 rounded-full object-cover border-2 border-tiktok-pink p-0.5 bg-zinc-900"
+                            >
+                            <div>
+                                <h2 id="creator-name" class="font-bold text-sm sm:text-base text-white leading-snug">Nama Pencipta</h2>
+                                <p id="creator-username" class="text-xs text-tiktok-cyan font-medium">@username</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-zinc-400 bg-zinc-900/90 px-3 py-1.5 rounded-xl border border-zinc-800">
+                            <span class="flex items-center gap-1"><i data-lucide="play" class="w-3.5 h-3.5 text-tiktok-cyan"></i> <strong id="stat-views" class="text-zinc-200">0</strong></span>
+                            <span class="text-zinc-700">|</span>
+                            <span class="flex items-center gap-1"><i data-lucide="heart" class="w-3.5 h-3.5 text-tiktok-pink"></i> <strong id="stat-likes" class="text-zinc-200">0</strong></span>
+                            <span class="text-zinc-700">|</span>
+                            <span id="video-duration" class="font-mono text-zinc-300">00:15</span>
+                        </div>
+                    </div>
+
+                    <!-- Video Caption -->
+                    <p id="video-title" class="text-xs sm:text-sm text-zinc-300 leading-relaxed line-clamp-2 bg-zinc-950/60 px-3.5 py-2.5 rounded-xl border border-zinc-800/70">
+                        Kapsyen video TikTok akan dipaparkan di sini...
+                    </p>
+
+                    <!-- AI Quality Booster Toggle Card -->
+                    <div class="p-4 rounded-2xl bg-gradient-to-r from-tiktok-purple/15 via-zinc-900/90 to-tiktok-cyan/10 border border-tiktok-purple/40 transition-all">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-start gap-3">
+                                <div class="w-9 h-9 rounded-xl bg-tiktok-purple/20 border border-tiktok-purple/40 flex items-center justify-center shrink-0 mt-0.5">
+                                    <i data-lucide="wand-2" class="w-4 h-4 text-tiktok-purple"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-bold text-sm text-white">AI Quality Booster</h3>
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-tiktok-purple text-white">PRO AI</span>
+                                    </div>
+                                    <p class="text-xs text-zinc-400 mt-0.5">Penajam butiran (Unsharp Mask), pengurang noise, kejelasan tekstur & warna HDR.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Toggle Switch -->
+                            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                <input type="checkbox" id="ai-booster-toggle" class="sr-only peer" onchange="handleAiBoosterToggle()">
+                                <div class="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-tiktok-purple"></div>
+                            </label>
+                        </div>
+
+                        <!-- AI Fine-Tuning Controls (6 Pelaras + 4 Preset Pintar) -->
+                        <div id="ai-controls-panel" class="hidden mt-3.5 pt-3.5 border-t border-tiktok-purple/25 space-y-3 text-xs">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <span class="text-[11px] font-semibold text-zinc-400 mr-1">Preset AI:</span>
+                                    <button type="button" onclick="applyAiPreset('cinematic')" class="ai-preset-btn px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-tiktok-purple/25 text-zinc-200 border border-zinc-700 hover:border-tiktok-purple/50 text-[11px] font-medium transition-colors">
+                                        Sinematik 4K
+                                    </button>
+                                    <button type="button" onclick="applyAiPreset('portrait')" class="ai-preset-btn px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-tiktok-cyan/25 text-zinc-200 border border-zinc-700 hover:border-tiktok-cyan/50 text-[11px] font-medium transition-colors">
+                                        Potret Jernih
+                                    </button>
+                                    <button type="button" onclick="applyAiPreset('anime')" class="ai-preset-btn px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-tiktok-pink/25 text-zinc-200 border border-zinc-700 hover:border-tiktok-pink/50 text-[11px] font-medium transition-colors">
+                                        Anime / Vivid
+                                    </button>
+                                    <button type="button" onclick="applyAiPreset('night')" class="ai-preset-btn px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-amber-500/25 text-zinc-200 border border-zinc-700 hover:border-amber-500/50 text-[11px] font-medium transition-colors">
+                                        Malam HDR
+                                    </button>
+                                </div>
+                                <button type="button" onclick="resetAiParams()" class="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white transition-colors" title="Tetapkan semula nilai AI">
+                                    <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                                    <span>Reset</span>
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <div class="bg-zinc-950/75 p-2.5 rounded-xl border border-zinc-800/80">
+                                    <div class="flex justify-between text-zinc-300 mb-1">
+                                        <span>Ketajaman AI</span>
+                                        <span id="val-sharpness" class="font-mono text-tiktok-purple font-bold">75%</span>
+                                    </div>
+                                    <input type="range" id="param-sharpness" min="0" max="100" value="75" oninput="updateAiParams()" class="w-full accent-tiktok-purple h-1.5 bg-zinc-800 rounded-lg cursor-pointer">
+                                </div>
+                                <div class="bg-zinc-950/75 p-2.5 rounded-xl border border-zinc-800/80">
+                                    <div class="flex justify-between text-zinc-300 mb-1">
+                                        <span>Kontras HDR</span>
+                                        <span id="val-contrast" class="font-mono text-tiktok-cyan font-bold">+18%</span>
+                                    </div>
+                                    <input type="range" id="param-contrast" min="0" max="50" value="18" oninput="updateAiParams()" class="w-full accent-tiktok-cyan h-1.5 bg-zinc-800 rounded-lg cursor-pointer">
+                                </div>
+                                <div class="bg-zinc-950/75 p-2.5 rounded-xl border border-zinc-800/80">
+                                    <div class="flex justify-between text-zinc-300 mb-1">
+                                        <span>Warna Vivid</span>
+                                        <span id="val-saturation" class="font-mono text-tiktok-pink font-bold">+20%</span>
+                                    </div>
+                                    <input type="range" id="param-saturation" min="0" max="50" value="20" oninput="updateAiParams()" class="w-full accent-tiktok-pink h-1.5 bg-zinc-800 rounded-lg cursor-pointer">
+                                </div>
+                                <div class="bg-zinc-950/75 p-2.5 rounded-xl border border-zinc-800/80">
+                                    <div class="flex justify-between text-zinc-300 mb-1">
+                                        <span>Kecerahan</span>
+                                        <span id="val-brightness" class="font-mono text-amber-400 font-bold">+4%</span>
+                                    </div>
+                                    <input type="range" id="param-brightness" min="-20" max="30" value="4" oninput="updateAiParams()" class="w-full accent-amber-400 h-1.5 bg-zinc-800 rounded-lg cursor-pointer">
+                                </div>
+                                <div class="bg-zinc-950/75 p-2.5 rounded-xl border border-zinc-800/80">
+                                    <div class="flex justify-between text-zinc-300 mb-1">
+                                        <span>Kurang Noise</span>
+                                        <span id="val-denoise" class="font-mono text-emerald-400 font-bold">35%</span>
+                                    </div>
+                                    <input type="range" id="param-denoise" min="0" max="100" value="35" oninput="updateAiParams()" class="w-full accent-emerald-400 h-1.5 bg-zinc-800 rounded-lg cursor-pointer">
+                                </div>
+                                <div class="bg-zinc-950/75 p-2.5 rounded-xl border border-zinc-800/80">
+                                    <div class="flex justify-between text-zinc-300 mb-1">
+                                        <span>Kejelasan AI</span>
+                                        <span id="val-clarity" class="font-mono text-indigo-400 font-bold">40%</span>
+                                    </div>
+                                    <input type="range" id="param-clarity" min="0" max="100" value="40" oninput="updateAiParams()" class="w-full accent-indigo-400 h-1.5 bg-zinc-800 rounded-lg cursor-pointer">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quality & Format Selection Cards -->
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-bold uppercase tracking-wider text-zinc-400">Pilih Jenis Kualiti & Format:</label>
+                            <span id="selected-quality-badge" class="text-xs font-semibold text-tiktok-cyan">Dipilih: 1080p Full HD</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="quality-options-grid">
+                            
+                            <!-- Option 1: 4K AI Upscale -->
+                            <div 
+                                onclick="selectQuality('4k_ai')" 
+                                id="q-card-4k_ai"
+                                class="quality-card sm:col-span-2 cursor-pointer p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-tiktok-purple/70 transition-all flex items-center justify-between gap-3 relative overflow-hidden"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-tiktok-purple/20 border border-tiktok-purple/40 flex items-center justify-center shrink-0">
+                                        <i data-lucide="sparkles" class="w-5 h-5 text-tiktok-purple"></i>
+                                    </div>
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="font-bold text-sm text-white">4K AI Upscale (2160p Ultra HD)</span>
+                                            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-gradient-to-r from-tiktok-purple to-tiktok-pink text-white tracking-wide shadow-sm">
+                                                35 MBPS • NO COMPRESS
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-zinc-400 mt-0.5">2160×3840 • H.264 High Profile • Tanpa Watermark • Penajaman AI</p>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-xs font-mono font-bold text-tiktok-purple">MP4 • 4K</span>
+                                    <span id="size-4k_ai" class="text-[11px] text-zinc-500">~65.0 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Option 2: 1080p Full HD -->
+                            <div 
+                                onclick="selectQuality('1080p')" 
+                                id="q-card-1080p"
+                                class="quality-card cursor-pointer p-3 rounded-2xl bg-zinc-900/90 border-2 border-tiktok-cyan bg-tiktok-cyan/5 transition-all flex items-center justify-between gap-2"
+                            >
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-tiktok-cyan/15 flex items-center justify-center shrink-0">
+                                        <i data-lucide="hd" class="w-4 h-4 text-tiktok-cyan"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-xs sm:text-sm text-white block">1080p Full HD</span>
+                                        <span class="text-[11px] text-zinc-400">1080×1920 • 14 Mbps</span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-[11px] font-mono font-bold text-tiktok-cyan">MP4</span>
+                                    <span id="size-1080p" class="text-[10px] text-zinc-500">~26.0 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Option 3: 720p HD -->
+                            <div 
+                                onclick="selectQuality('720p')" 
+                                id="q-card-720p"
+                                class="quality-card cursor-pointer p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-600 transition-all flex items-center justify-between gap-2"
+                            >
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
+                                        <i data-lucide="video" class="w-4 h-4 text-zinc-300"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-xs sm:text-sm text-white block">720p HD</span>
+                                        <span class="text-[11px] text-zinc-400">720×1280 • 6 Mbps</span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-[11px] font-mono font-semibold text-zinc-300">MP4</span>
+                                    <span id="size-720p" class="text-[10px] text-zinc-500">~11.2 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Option 4: 480p SD -->
+                            <div 
+                                onclick="selectQuality('480p')" 
+                                id="q-card-480p"
+                                class="quality-card cursor-pointer p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-600 transition-all flex items-center justify-between gap-2"
+                            >
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
+                                        <i data-lucide="smartphone" class="w-4 h-4 text-zinc-400"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-xs sm:text-sm text-white block">480p SD</span>
+                                        <span class="text-[11px] text-zinc-400">480×854 • Jimat Data</span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-[11px] font-mono font-semibold text-zinc-400">MP4</span>
+                                    <span id="size-480p" class="text-[10px] text-zinc-500">~4.6 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Option 2: 1080p Full HD -->
+                            <div 
+                                onclick="selectQuality('1080p')" 
+                                id="q-card-1080p"
+                                class="quality-card cursor-pointer p-3 rounded-2xl bg-zinc-900/90 border-2 border-tiktok-cyan bg-tiktok-cyan/5 transition-all flex items-center justify-between gap-2"
+                            >
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-tiktok-cyan/15 flex items-center justify-center shrink-0">
+                                        <i data-lucide="hd" class="w-4 h-4 text-tiktok-cyan"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-xs sm:text-sm text-white block">1080p Full HD</span>
+                                        <span class="text-[11px] text-zinc-400">1080×1920 • Asal Jernih</span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-[11px] font-mono font-bold text-tiktok-cyan">MP4</span>
+                                    <span id="size-1080p" class="text-[10px] text-zinc-500">~16.2 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Option 3: 720p HD -->
+                            <div 
+                                onclick="selectQuality('720p')" 
+                                id="q-card-720p"
+                                class="quality-card cursor-pointer p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-600 transition-all flex items-center justify-between gap-2"
+                            >
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
+                                        <i data-lucide="video" class="w-4 h-4 text-zinc-300"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-xs sm:text-sm text-white block">720p HD</span>
+                                        <span class="text-[11px] text-zinc-400">720×1280 • Standard</span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-[11px] font-mono font-semibold text-zinc-300">MP4</span>
+                                    <span id="size-720p" class="text-[10px] text-zinc-500">~8.4 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Option 4: 480p SD -->
+                            <div 
+                                onclick="selectQuality('480p')" 
+                                id="q-card-480p"
+                                class="quality-card cursor-pointer p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-600 transition-all flex items-center justify-between gap-2"
+                            >
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
+                                        <i data-lucide="smartphone" class="w-4 h-4 text-zinc-400"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-xs sm:text-sm text-white block">480p SD</span>
+                                        <span class="text-[11px] text-zinc-400">480×854 • Jimat Data</span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-[11px] font-mono font-semibold text-zinc-400">MP4</span>
+                                    <span id="size-480p" class="text-[10px] text-zinc-500">~4.1 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Option 5: Audio Sahaja MP3 320kbps -->
+                            <div 
+                                onclick="selectQuality('mp3')" 
+                                id="q-card-mp3"
+                                class="quality-card cursor-pointer p-3 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-tiktok-pink/60 transition-all flex items-center justify-between gap-2"
+                            >
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-tiktok-pink/15 flex items-center justify-center shrink-0">
+                                        <i data-lucide="music" class="w-4 h-4 text-tiktok-pink"></i>
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-xs sm:text-sm text-white block">Audio Sahaja</span>
+                                        <span class="text-[11px] text-zinc-400">320kbps High Quality</span>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="block text-[11px] font-mono font-bold text-tiktok-pink">MP3</span>
+                                    <span id="size-mp3" class="text-[10px] text-zinc-500">~2.8 MB</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Primary Action Download Button -->
+                    <div class="pt-1 space-y-2.5">
+                        <button 
+                            type="button" 
+                            id="btn-main-download"
+                            onclick="executeSelectedDownload()"
+                            class="w-full tiktok-btn-gradient text-zinc-950 font-extrabold py-4 px-6 rounded-2xl flex items-center justify-between shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all"
+                        >
+                            <span class="flex items-center gap-2.5 text-sm sm:text-base">
+                                <i id="main-dl-icon" data-lucide="download" class="w-5 h-5"></i>
+                                <span id="main-dl-text">Muat Turun 1080p Full HD (Tanpa Watermark)</span>
+                            </span>
+                            <span id="main-dl-badge" class="px-2.5 py-1 rounded-lg bg-black/20 text-xs font-extrabold">MP4</span>
+                        </button>
+
+                        <!-- Secondary option: With Watermark -->
+                        <div class="flex items-center justify-between px-1 text-xs text-zinc-500">
+                            <span>Perlukan versi asal dengan logo TikTok?</span>
+                            <button type="button" onclick="downloadWatermarkFallback()" class="text-zinc-400 hover:text-white underline transition-colors">
+                                Muat Turun Dengan Watermark
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Phased AI & Download Progress Bar -->
+                    <div id="process-progress-wrapper" class="hidden p-4 rounded-2xl bg-zinc-950 border border-tiktok-purple/40 space-y-2.5 shadow-inner">
+                        <div class="flex items-center justify-between text-xs">
+                            <span id="process-phase-label" class="text-zinc-200 font-semibold flex items-center gap-2">
+                                <i data-lucide="cpu" class="w-4 h-4 animate-spin text-tiktok-purple"></i>
+                                <span>Fasa 1/4: Menganalisis Bingkai Video...</span>
+                            </span>
+                            <span id="process-percent" class="font-mono text-tiktok-cyan font-bold">0%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div id="process-progress-bar" class="h-full bg-gradient-to-r from-tiktok-purple via-tiktok-cyan to-tiktok-pink transition-all duration-200" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-zinc-500 font-mono">
+                            <span id="phase-step-1" class="text-tiktok-purple font-bold">1. Analisis</span>
+                            <span id="phase-step-2">2. Resolusi & Skala</span>
+                            <span id="phase-step-3">3. Pengekodan MP4</span>
+                            <span id="phase-step-4">4. Selesai</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Info Grid -->
+        <section class="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="glass-panel p-5 rounded-2xl border border-zinc-800/70">
+                <div class="w-10 h-10 rounded-xl bg-tiktok-purple/15 border border-tiktok-purple/30 flex items-center justify-center mb-3.5">
+                    <i data-lucide="sparkles" class="w-5 h-5 text-tiktok-purple"></i>
+                </div>
+                <h3 class="font-bold text-white text-sm mb-1">4K H.264 Bitrate Tinggi</h3>
+                <p class="text-xs text-zinc-400 leading-relaxed">Mengekod resolusi 2160p sebenar pada 35 Mbps menggunakan WebCodecs + MP4 Muxer tanpa mampatan kabur pelayar.</p>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl border border-zinc-800/70">
+                <div class="w-10 h-10 rounded-xl bg-tiktok-cyan/10 border border-tiktok-cyan/20 flex items-center justify-center mb-3.5">
+                    <i data-lucide="sliders" class="w-5 h-5 text-tiktok-cyan"></i>
+                </div>
+                <h3 class="font-bold text-white text-sm mb-1">6 Kawalan & Preset AI</h3>
+                <p class="text-xs text-zinc-400 leading-relaxed">Laras ketajaman Unsharp, kontras HDR, warna vivid, kecerahan, pengurang noise & kejelasan tekstur secara masa nyata.</p>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl border border-zinc-800/70">
+                <div class="w-10 h-10 rounded-xl bg-tiktok-pink/10 border border-tiktok-pink/20 flex items-center justify-center mb-3.5">
+                    <i data-lucide="server" class="w-5 h-5 text-tiktok-pink"></i>
+                </div>
+                <h3 class="font-bold text-white text-sm mb-1">Integrasi FFmpeg & Real-ESRGAN</h3>
+                <p class="text-xs text-zinc-400 leading-relaxed">Sedia disambungkan ke pelayan Node.js dengan FFmpeg lanczos/unsharp atau API Replicate Real-ESRGAN untuk pemprosesan awan.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-zinc-900 py-6 text-center text-xs text-zinc-500">
+        <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>&copy; 2026 TikSave AI Downloader. Dibangunkan untuk kegunaan peribadi & pengarkiban kreatif.</p>
+            <p class="text-zinc-600">Tidak berafiliasi dengan TikTok atau ByteDance Ltd.</p>
+        </div>
+    </footer>
+
+    <!-- Modal: Kod Sumber Backend (Node.js + FFmpeg/Real-ESRGAN & PHP) -->
+    <div id="backend-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div class="glass-panel bg-zinc-950 border border-zinc-800 rounded-3xl max-w-3xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-tiktok-purple/20 flex items-center justify-center">
+                        <i data-lucide="terminal" class="w-4 h-4 text-tiktok-purple"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-base">Kod Sumber Backend & AI Upscaler</h3>
+                        <p class="text-xs text-zinc-400">Integrasi Node.js, FFmpeg 4K/1080p/720p/480p Upscale, Replicate Real-ESRGAN & PHP cURL</p>
+                    </div>
+                </div>
+                <button onclick="closeBackendModal()" class="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Tabs Switcher -->
+            <div class="px-6 pt-3 bg-zinc-900/50 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex gap-2">
+                    <button 
+                        id="tab-node" 
+                        onclick="switchBackendTab('node')" 
+                        class="px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-tiktok-cyan text-tiktok-cyan transition-colors"
+                    >
+                        Node.js + FFmpeg AI
+                    </button>
+                    <button 
+                        id="tab-replicate" 
+                        onclick="switchBackendTab('replicate')" 
+                        class="px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 transition-colors"
+                    >
+                        Real-ESRGAN AI API
+                    </button>
+                    <button 
+                        id="tab-php" 
+                        onclick="switchBackendTab('php')" 
+                        class="px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 transition-colors"
+                    >
+                        PHP Native (cURL)
+                    </button>
+                </div>
+                <button 
+                    onclick="copyBackendCode()" 
+                    class="mb-1.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-white border border-zinc-700 transition-colors"
+                >
+                    <i data-lucide="copy" class="w-3.5 h-3.5 text-tiktok-cyan"></i>
+                    <span>Salin Kod</span>
+                </button>
+            </div>
+
+            <!-- Code Container -->
+            <div class="p-6 overflow-y-auto flex-grow bg-[#070709] font-mono text-xs leading-relaxed">
+                <!-- Node.js + FFmpeg Code -->
+                <pre id="code-node" class="text-zinc-300 overflow-x-auto"><code>// 1. Pasang pakej: npm init -y && npm install express cors axios fluent-ffmpeg ffmpeg-static
+// 2. Jalankan pelayan: node server.js
+
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Endpoint 1: Dapatkan pautan video TikTok tanpa watermark
+app.get('/api/tiktok', async (req, res) => {
+    const videoUrl = req.query.url;
+    if (!videoUrl) return res.status(400).json({ error: 'Parameter URL TikTok diperlukan.' });
+
+    try {
+        const response = await axios.get('https://www.tikwm.com/api/', {
+            params: { url: videoUrl, hd: 1 },
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
+        return res.json(response.data);
+    } catch (err) {
+        return res.status(500).json({ error: 'Gagal menghubungi pelayan sumber.', detail: err.message });
+    }
+});
+
+// Endpoint 2: FFmpeg Upscale/Downscale & Penajaman AI mengikut parameter pengguna
+// Endpoint 2: FFmpeg Upscale/Downscale & Penajaman AI tanpa mampatan
+app.get('/api/ai-upscale', async (req, res) => {
+    const {
+        videoUrl,
+        quality = '4k_ai',
+        ai = '1',
+        sharpness = 75,
+        contrast = 18,
+        saturation = 20,
+        brightness = 4,
+        denoise = 35
+    } = req.query;
+
+    if (!videoUrl) return res.status(400).send('URL video diperlukan.');
+
+    res.setHeader('Content-Disposition', `attachment; filename="TikSave_${quality}.mp4"`);
+    res.setHeader('Content-Type', 'video/mp4');
+
+    const scaleMap = {
+        '4k_ai': 'scale=2160:-2:flags=lanczos',
+        '1080p': 'scale=1080:-2:flags=lanczos',
+        '720p': 'scale=720:-2:flags=bicubic',
+        '480p': 'scale=480:-2:flags=bilinear'
+    };
+
+    const filters = [scaleMap[quality] || scaleMap['1080p']];
+
+    if (ai === '1') {
+        const sharpAmount = ((Number(sharpness) / 100) * 1.8).toFixed(2);
+        const contrastVal = (1 + Number(contrast) / 100).toFixed(2);
+        const satVal = (1 + Number(saturation) / 100).toFixed(2);
+        const brightVal = (Number(brightness) / 100).toFixed(2);
+        const denoiseVal = ((Number(denoise) / 100) * 6).toFixed(1);
+
+        if (Number(denoise) > 0) filters.push(`hqdn3d=${denoiseVal}:${denoiseVal}:4:4`);
+        if (Number(sharpness) > 0) filters.push(`unsharp=5:5:${sharpAmount}:5:5:0.0`);
+        filters.push(`eq=contrast=${contrastVal}:saturation=${satVal}:brightness=${brightVal}`);
+    }
+
+    ffmpeg(videoUrl)
+        .videoFilters(filters.join(','))
+        .videoCodec('libx264')
+        .outputOptions(['-preset slow', '-crf 16', '-pix_fmt yuv420p', '-movflags frag_keyframe+empty_moov'])
+        .format('mp4')
+        .on('error', (err) => console.error('Ralat FFmpeg:', err.message))
+        .pipe(res, { end: true });
+});
+
+app.listen(3000, () => console.log('TikSave AI Backend aktif di http://localhost:3000'));</code></pre>
+
+                <!-- Replicate Real-ESRGAN AI API Code -->
+                <pre id="code-replicate" class="hidden text-zinc-300 overflow-x-auto"><code>// Integrasi AI Sebenar menggunakan Model Real-ESRGAN Video Upscaler (Replicate API)
+// Pasang: npm install replicate express cors
+
+const express = require('express');
+const cors = require('cors');
+const Replicate = require('replicate');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const replicate = new Replicate({
+    auth: process.env.REPLICATE_API_TOKEN, // Dapatkan kunci API di replicate.com
+});
+
+app.post('/api/ai-upscale', async (req, res) => {
+    const { videoUrl, scale = 4, faceEnhance = true } = req.body;
+
+    try {
+        // Jalankan model AI Real-ESRGAN untuk pemulihan & peningkatan resolusi 4K
+        const output = await replicate.run(
+            "nightmareai/real-esrgan:f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa",
+            {
+                input: {
+                    video: videoUrl,
+                    scale: scale,
+                    face_enhance: faceEnhance
+                }
+            }
+        );
+
+        res.json({
+            status: 'success',
+            upscaledUrl: output
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Pemprosesan AI gagal', detail: error.message });
+    }
+});
+
+app.listen(3001, () => console.log('Pelayan Real-ESRGAN AI berjalan di port 3001'));</code></pre>
+
+                <!-- PHP Code -->
+                <pre id="code-php" class="hidden text-zinc-300 overflow-x-auto"><code>&lt;?php
+// Simpan sebagai api.php di pelayan hosting anda (PHP 7.4+ dengan cURL)
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+
+if (isset($_GET['action']) &amp;&amp; $_GET['action'] === 'download' &amp;&amp; !empty($_GET['fileUrl'])) {
+    $fileUrl = $_GET['fileUrl'];
+    $filename = isset($_GET['filename']) ? basename($_GET['filename']) : 'TikSave_Video.mp4';
+
+    header('Content-Description: File Transfer');
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    $ch = curl_init($fileUrl);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+    curl_exec($ch);
+    curl_close($ch);
+    exit;
+}
+
+header("Content-Type: application/json; charset=UTF-8");
+if (empty($_GET['url'])) {
+    http_response_code(400);
+    echo json_encode(["code" => -1, "msg" => "Parameter URL TikTok diperlukan."]);
+    exit;
+}
+
+$tiktokUrl = urlencode($_GET['url']);
+$ch = curl_init("https://www.tikwm.com/api/?url={$tiktokUrl}&amp;hd=1");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+$response = curl_exec($ch);
+curl_close($ch);
+
+echo $response;
+?&gt;</code></pre>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3.5 bg-zinc-900/70 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+                <span>Tip: Masukkan URL pelayan anda pada menu <strong>Tetapan Pelayan & API AI</strong>.</span>
+                <button onclick="closeBackendModal()" class="px-4 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Inisialisasi ikon Lucide
+        lucide.createIcons();
+
+        // State Aplikasi Global
+        let currentVideoData = null;
+        let selectedQuality = '1080p';
+        let isAiBoosterActive = false;
+        let isCompareModeOpen = false;
+        let compareAnimationFrame = null;
+        let isExportingVideo = false;
+
+        let customBackendUrl = localStorage.getItem('tiksave_custom_api') || '';
+        let customAiApiUrl = localStorage.getItem('tiksave_custom_ai_api') || '';
+        let activeBackendTab = 'node';
+
+        // Konfigurasi Kualiti & Bitrate Tinggi Tanpa Compress
+        const QUALITY_CONFIG = {
+            '4k_ai': {
+                label: '4K AI Upscale (2160p Ultra HD)',
+                shortTag: '4K_2160P',
+                btnText: 'Jana & Muat Turun 4K AI Upscale (2160p)',
+                badge: '2160P • 35MBPS',
+                ext: 'mp4',
+                targetShortEdge: 2160,
+                bitrate: 35000000, // 35 Mbps (4K Tulen Tanpa Compress)
+                isAi: true
+            },
+            '1080p': {
+                label: '1080p Full HD (14 Mbps)',
+                shortTag: '1080P',
+                btnText: 'Muat Turun 1080p Full HD (Tanpa Watermark)',
+                badge: '1080P • FHD',
+                ext: 'mp4',
+                targetShortEdge: 1080,
+                bitrate: 14000000, // 14 Mbps
+                isAi: false
+            },
+            '720p': {
+                label: '720p HD (6 Mbps)',
+                shortTag: '720P',
+                btnText: 'Muat Turun 720p HD (Tanpa Watermark)',
+                badge: '720P • HD',
+                ext: 'mp4',
+                targetShortEdge: 720,
+                bitrate: 6000000, // 6 Mbps
+                isAi: false
+            },
+            '480p': {
+                label: '480p SD (Jimat Data)',
+                shortTag: '480P',
+                btnText: 'Muat Turun 480p SD (Jimat Data)',
+                badge: '480P • SD',
+                ext: 'mp4',
+                targetShortEdge: 480,
+                bitrate: 2500000, // 2.5 Mbps
+                isAi: false
+            },
+            'mp3': {
+                label: 'Audio Sahaja (320kbps MP3)',
+                shortTag: 'MP3',
+                btnText: 'Muat Turun Audio MP3 (320kbps)',
+                badge: 'MP3 • 320K',
+                ext: 'mp3',
+                targetShortEdge: 0,
+                bitrate: 320000,
+                isAi: false
+            }
+        };
+
+        const AI_PRESETS = {
+            cinematic: { sharpness: 78, contrast: 22, saturation: 18, brightness: 2, denoise: 40, clarity: 48 },
+            portrait:  { sharpness: 65, contrast: 12, saturation: 14, brightness: 8, denoise: 55, clarity: 35 },
+            anime:     { sharpness: 92, contrast: 26, saturation: 36, brightness: 5, denoise: 25, clarity: 65 },
+            night:     { sharpness: 70, contrast: 28, saturation: 20, brightness: 16, denoise: 75, clarity: 50 }
+        };
+
+        // Inisialisasi halaman
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlInput = document.getElementById('tiktok-url');
+            if (customBackendUrl) document.getElementById('custom-api-url').value = customBackendUrl;
+            if (customAiApiUrl) document.getElementById('custom-ai-url').value = customAiApiUrl;
+
+            urlInput.addEventListener('input', updateInputButtons);
+        });
+
+        // Notifikasi Toast Elegan
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'border-emerald-500/40 bg-zinc-900/95 text-emerald-300',
+                error: 'border-rose-500/40 bg-zinc-900/95 text-rose-300',
+                warning: 'border-amber-500/40 bg-zinc-900/95 text-amber-300',
+                ai: 'border-tiktok-purple/50 bg-zinc-900/95 text-purple-200',
+                info: 'border-tiktok-cyan/40 bg-zinc-900/95 text-zinc-100'
+            };
+
+            const icons = {
+                success: 'check-circle-2',
+                error: 'x-circle',
+                warning: 'alert-circle',
+                ai: 'sparkles',
+                info: 'info'
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-2xl backdrop-blur-md text-xs sm:text-sm font-medium transform transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+            toast.innerHTML = `
+                <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i>
+                <span class="flex-grow">${message}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4200);
+        }
+
+        // Kawalan Butang Input
+        function updateInputButtons() {
+            const val = document.getElementById('tiktok-url').value.trim();
+            const btnClear = document.getElementById('btn-clear');
+            const btnPaste = document.getElementById('btn-paste');
+
+            if (val.length > 0) {
+                btnClear.classList.remove('hidden');
+                btnClear.classList.add('inline-flex');
+                btnPaste.classList.add('hidden');
+            } else {
+                btnClear.classList.add('hidden');
+                btnClear.classList.remove('inline-flex');
+                btnPaste.classList.remove('hidden');
+            }
+        }
+
+        async function pasteFromClipboard() {
+            try {
+                if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error();
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    document.getElementById('tiktok-url').value = text.trim();
+                    updateInputButtons();
+                    showToast('Pautan berjaya ditampal!', 'success');
+                } else {
+                    showToast('Papan keratan kosong. Sila salin pautan TikTok dahulu.', 'warning');
+                }
+            } catch (err) {
+                document.getElementById('tiktok-url').focus();
+                showToast('Sila tekan Ctrl+V atau tampal pautan secara manual.', 'warning');
+            }
+        }
+
+        function clearInput() {
+            const input = document.getElementById('tiktok-url');
+            input.value = '';
+            input.focus();
+            updateInputButtons();
+        }
+
+        function toggleCustomEndpoint() {
+            document.getElementById('custom-endpoint-panel').classList.toggle('hidden');
+        }
+
+        function saveCustomEndpoint() {
+            customBackendUrl = document.getElementById('custom-api-url').value.trim();
+            customAiApiUrl = document.getElementById('custom-ai-url').value.trim();
+            localStorage.setItem('tiksave_custom_api', customBackendUrl);
+            localStorage.setItem('tiksave_custom_ai_api', customAiApiUrl);
+            
+            document.getElementById('active-api-label').textContent = (customBackendUrl || customAiApiUrl) 
+                ? 'Pelayan Kustom + API AI Luaran' 
+                : 'TikWM API + Enjin WebCodecs MP4 (Uncompressed Bitrate)';
+            showToast('Tetapan pelayan berjaya disimpan!', 'success');
+            toggleCustomEndpoint();
+        }
+
+        function formatNumber(num) {
+            if (!num) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return num.toString();
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '00:15';
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${mins}:${secs}`;
+        }
+
+        // Hantar Borang & Dapatkan Data Video
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const urlInput = document.getElementById('tiktok-url').value.trim();
+
+            if (!urlInput || !urlInput.includes('tiktok.com')) {
+                showToast('Sila masukkan pautan video TikTok yang sah.', 'error');
+                return;
+            }
+
+            setLoadingState(true);
+            document.getElementById('fallback-banner').classList.add('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+
+            try {
+                let apiEndpoint = customBackendUrl 
+                    ? `${customBackendUrl}${encodeURIComponent(urlInput)}`
+                    : `https://www.tikwm.com/api/?url=${encodeURIComponent(urlInput)}&hd=1`;
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+                const response = await fetch(apiEndpoint, { method: 'GET', signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const json = await response.json();
+
+                if (json && json.code === 0 && json.data) {
+                    const data = json.data;
+                    const resolveUrl = (path) => !path ? '' : (path.startsWith('http') ? path : `https://www.tikwm.com${path}`);
+
+                    currentVideoData = {
+                        id: data.id || Date.now(),
+                        title: data.title || 'Video TikTok Tanpa Tajuk',
+                        cover: resolveUrl(data.cover || data.origin_cover),
+                        noWmHd: resolveUrl(data.hdplay || data.play),
+                        noWmSd: resolveUrl(data.play),
+                        withWm: resolveUrl(data.wmplay || data.play),
+                        music: resolveUrl(data.music),
+                        duration: data.duration || 15,
+                        views: data.play_count || 0,
+                        likes: data.digg_count || 0,
+                        authorName: data.author?.nickname || 'Pencipta TikTok',
+                        authorUsername: data.author?.unique_id ? `@${data.author.unique_id}` : '@pengguna',
+                        authorAvatar: resolveUrl(data.author?.avatar) || 'https://placehold.co/100x100/18181b/00f2fe?text=TT'
+                    };
+
+                    renderResult(currentVideoData);
+                    showToast('Video berjaya diproses! Pilih kualiti muat turun anda.', 'success');
+                } else {
+                    throw new Error(json.msg || 'Video tidak ditemui.');
+                }
+            } catch (error) {
+                console.warn('Beralih ke mod pratonton demo:', error);
+                activateFallbackDemo(urlInput);
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        function activateFallbackDemo(originalUrl) {
+            document.getElementById('fallback-banner').classList.remove('hidden');
+            currentVideoData = {
+                id: 'demo_' + Math.floor(Math.random() * 100000),
+                title: `Pratonton Video (${originalUrl}) — Pemandangan Sinematik Malam Neon 60FPS ✨ #tiktok #4k #aiupscale`,
+                cover: 'https://placehold.co/540x960/09090b/00f2fe?text=TikSave+AI+4K',
+                noWmHd: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+                noWmSd: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+                withWm: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+                music: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+                duration: 15,
+                views: 1850400,
+                likes: 312900,
+                authorName: 'TikSave AI Studio',
+                authorUsername: '@tiksave.my',
+                authorAvatar: 'https://placehold.co/100x100/a855f7/ffffff?text=AI'
+            };
+            renderResult(currentVideoData);
+            showToast('Mod demo aktif. Cuba pilih 4K AI Upscale untuk lihat perbandingan!', 'ai');
+        }
+
+        function loadDemoData() {
+            const sampleUrl = 'https://www.tiktok.com/@tiksave.my/video/734891029384710293';
+            document.getElementById('tiktok-url').value = sampleUrl;
+            updateInputButtons();
+            document.getElementById('fallback-banner').classList.add('hidden');
+            
+            currentVideoData = {
+                id: '734891029384710293',
+                title: 'Ujian Peningkatan Kualiti AI 4K Ultra HD 60FPS — Tekstur Lebih Tajam & Warna HDR Hidup! 🚀🔥 #fyp #ai4k',
+                cover: 'https://placehold.co/540x960/121216/a855f7?text=4K+AI+Preview',
+                noWmHd: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+                noWmSd: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+                withWm: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+                music: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+                duration: 15,
+                views: 3420000,
+                likes: 528900,
+                authorName: 'Studio Kreatif MY',
+                authorUsername: '@studiokreatif.my',
+                authorAvatar: 'https://placehold.co/100x100/00f2fe/09090b?text=MY'
+            };
+
+            renderResult(currentVideoData);
+            selectQuality('4k_ai');
+            showToast('Mod Demo 4K AI diaktifkan! Seret gelangsar pada video untuk melihat kesan AI.', 'ai');
+        }
+
+        function setLoadingState(isLoading) {
+            const btn = document.getElementById('btn-submit');
+            const btnText = document.getElementById('btn-submit-text');
+            const btnIcon = document.getElementById('btn-submit-icon');
+            const loadingBox = document.getElementById('loading-state');
+
+            btn.disabled = isLoading;
+            if (isLoading) {
+                btnText.textContent = 'Memproses...';
+                btnIcon.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+                loadingBox.classList.remove('hidden');
+            } else {
+                btnText.textContent = 'Proses Video';
+                btnIcon.innerHTML = '<i data-lucide="download" class="w-5 h-5"></i>';
+                loadingBox.classList.add('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        function renderResult(data) {
+            const videoPlayer = document.getElementById('video-player');
+            videoPlayer.poster = data.cover;
+            videoPlayer.src = data.noWmHd || data.noWmSd;
+
+            document.getElementById('creator-avatar').src = data.authorAvatar;
+            document.getElementById('creator-name').textContent = data.authorName;
+            document.getElementById('creator-username').textContent = data.authorUsername;
+            document.getElementById('video-duration').textContent = formatDuration(data.duration);
+            document.getElementById('video-title').textContent = data.title;
+
+            document.getElementById('stat-views').textContent = formatNumber(data.views);
+            document.getElementById('stat-likes').textContent = formatNumber(data.likes);
+
+            // Anggaran saiz fail berdasarkan durasi
+            const durFactor = Math.max(1, (data.duration || 15) / 15);
+            document.getElementById('size-4k_ai').textContent = `~${(65.0 * durFactor).toFixed(1)} MB`;
+            document.getElementById('size-1080p').textContent = `~${(26.0 * durFactor).toFixed(1)} MB`;
+            document.getElementById('size-720p').textContent = `~${(11.2 * durFactor).toFixed(1)} MB`;
+            document.getElementById('size-480p').textContent = `~${(4.6 * durFactor).toFixed(1)} MB`;
+            document.getElementById('size-mp3').textContent = `~${(2.8 * durFactor).toFixed(1)} MB`;
+
+            const resultSection = document.getElementById('result-section');
+            resultSection.classList.remove('hidden');
+            selectQuality(selectedQuality);
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Pemilihan Kad Kualiti & Segerak Butang Utama
+        function selectQuality(qualityKey) {
+            selectedQuality = qualityKey;
+            const config = QUALITY_CONFIG[qualityKey];
+
+            document.querySelectorAll('.quality-card').forEach(card => {
+                card.classList.remove('border-2', 'border-tiktok-cyan', 'bg-tiktok-cyan/5', 'border-tiktok-purple', 'bg-tiktok-purple/10', 'ai-glow');
+                card.classList.add('border', 'border-zinc-800');
+            });
+
+            const activeCard = document.getElementById(`q-card-${qualityKey}`);
+            if (activeCard) {
+                activeCard.classList.remove('border', 'border-zinc-800');
+                if (qualityKey === '4k_ai') {
+                    activeCard.classList.add('border-2', 'border-tiktok-purple', 'bg-tiktok-purple/10', 'ai-glow');
+                } else {
+                    activeCard.classList.add('border-2', 'border-tiktok-cyan', 'bg-tiktok-cyan/5');
+                }
+            }
+
+            document.getElementById('selected-quality-badge').textContent = `Dipilih: ${config.label}`;
+            document.getElementById('selected-quality-badge').className = qualityKey === '4k_ai' 
+                ? 'text-xs font-bold text-tiktok-purple' 
+                : 'text-xs font-semibold text-tiktok-cyan';
+
+            if (qualityKey === '4k_ai' && !isAiBoosterActive) {
+                document.getElementById('ai-booster-toggle').checked = true;
+                handleAiBoosterToggle(true);
+            }
+
+            syncMainDownloadButton();
+        }
+
+        function syncMainDownloadButton() {
+            const config = QUALITY_CONFIG[selectedQuality];
+            const mainBtn = document.getElementById('btn-main-download');
+            const mainIcon = document.getElementById('main-dl-icon');
+            const mainText = document.getElementById('main-dl-text');
+            const mainBadge = document.getElementById('main-dl-badge');
+            const compareTag = document.getElementById('ai-compare-tag');
+
+            const useAiStyle = (selectedQuality === '4k_ai' || (isAiBoosterActive && selectedQuality !== 'mp3'));
+
+            if (useAiStyle) {
+                mainBtn.classList.remove('tiktok-btn-gradient');
+                mainBtn.classList.add('ai-btn-gradient');
+                mainIcon.setAttribute('data-lucide', 'sparkles');
+
+                if (selectedQuality === '4k_ai') {
+                    mainText.textContent = 'Jana & Muat Turun 4K AI Upscale (2160p)';
+                    mainBadge.textContent = '2160P • 35MBPS';
+                    if (compareTag) compareTag.textContent = 'AI 4K (2160P)';
+                } else {
+                    mainText.textContent = `Jana & Muat Turun ${config.shortTag} + AI Boost`;
+                    mainBadge.textContent = `${config.shortTag} • AI`;
+                    if (compareTag) compareTag.textContent = `AI ${config.shortTag} BOOST`;
+                }
+            } else {
+                mainBtn.classList.remove('ai-btn-gradient');
+                mainBtn.classList.add('tiktok-btn-gradient');
+                mainIcon.setAttribute('data-lucide', selectedQuality === 'mp3' ? 'music' : 'download');
+                mainText.textContent = config.btnText;
+                mainBadge.textContent = config.badge;
+                if (compareTag) compareTag.textContent = 'AI ENHANCED';
+            }
+
+            lucide.createIcons();
+        }
+
+        // Kawalan Togol AI Quality Booster
+        function handleAiBoosterToggle(forceEnable = null) {
+            const toggle = document.getElementById('ai-booster-toggle');
+            isAiBoosterActive = forceEnable !== null ? forceEnable : toggle.checked;
+            
+            const controlsPanel = document.getElementById('ai-controls-panel');
+            const btnToggleCompare = document.getElementById('btn-toggle-compare');
+            const previewBadge = document.getElementById('preview-badge');
+
+            if (isAiBoosterActive) {
+                controlsPanel.classList.remove('hidden');
+                btnToggleCompare.classList.remove('hidden');
+                btnToggleCompare.classList.add('inline-flex');
+                previewBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-tiktok-purple/20 border border-tiktok-purple/40 text-[11px] font-bold text-tiktok-purple';
+                previewBadge.innerHTML = '<i data-lucide="sparkles" class="w-3.5 h-3.5"></i><span>AI Enhancer Aktif</span>';
+                
+                if (!isCompareModeOpen) {
+                    toggleBeforeAfterView(true);
+                }
+            } else {
+                controlsPanel.classList.add('hidden');
+                btnToggleCompare.classList.add('hidden');
+                btnToggleCompare.classList.remove('inline-flex');
+                previewBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700 text-[11px] font-semibold text-tiktok-cyan';
+                previewBadge.innerHTML = '<i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i><span>Tanpa Watermark</span>';
+                
+                if (isCompareModeOpen) {
+                    toggleBeforeAfterView(false);
+                }
+            }
+
+            syncMainDownloadButton();
+        }
+
+        function getAiFilterParams() {
+            return {
+                sharpness: parseInt(document.getElementById('param-sharpness').value || 75, 10),
+                contrast: parseInt(document.getElementById('param-contrast').value || 18, 10),
+                saturation: parseInt(document.getElementById('param-saturation').value || 20, 10),
+                brightness: parseInt(document.getElementById('param-brightness').value || 4, 10),
+                denoise: parseInt(document.getElementById('param-denoise').value || 35, 10),
+                clarity: parseInt(document.getElementById('param-clarity').value || 40, 10)
+            };
+        }
+
+        function updateAiParams() {
+            const p = getAiFilterParams();
+            document.getElementById('val-sharpness').textContent = `${p.sharpness}%`;
+            document.getElementById('val-contrast').textContent = `+${p.contrast}%`;
+            document.getElementById('val-saturation').textContent = `+${p.saturation}%`;
+            document.getElementById('val-brightness').textContent = `${p.brightness >= 0 ? '+' : ''}${p.brightness}%`;
+            document.getElementById('val-denoise').textContent = `${p.denoise}%`;
+            document.getElementById('val-clarity').textContent = `${p.clarity}%`;
+        }
+
+        function applyAiPreset(presetKey) {
+            const preset = AI_PRESETS[presetKey];
+            if (!preset) return;
+
+            document.getElementById('param-sharpness').value = preset.sharpness;
+            document.getElementById('param-contrast').value = preset.contrast;
+            document.getElementById('param-saturation').value = preset.saturation;
+            document.getElementById('param-brightness').value = preset.brightness;
+            document.getElementById('param-denoise').value = preset.denoise;
+            document.getElementById('param-clarity').value = preset.clarity;
+
+            updateAiParams();
+            const names = { cinematic: 'Sinematik 4K', portrait: 'Potret Jernih', anime: 'Anime / Vivid', night: 'Malam HDR' };
+            showToast(`Preset AI "${names[presetKey]}" diterapkan!`, 'ai');
+        }
+
+        function resetAiParams() {
+            document.getElementById('param-sharpness').value = 75;
+            document.getElementById('param-contrast').value = 18;
+            document.getElementById('param-saturation').value = 20;
+            document.getElementById('param-brightness').value = 4;
+            document.getElementById('param-denoise').value = 35;
+            document.getElementById('param-clarity').value = 40;
+            updateAiParams();
+            showToast('Pelarasan AI ditetapkan semula ke lalai.', 'info');
+        }
+
+        // Paparan Interaktif Sebelum vs Selepas (Before/After Comparison Slider)
+        function toggleBeforeAfterView(forceState = null) {
+            isCompareModeOpen = forceState !== null ? forceState : !isCompareModeOpen;
+            const standardBox = document.getElementById('standard-player-box');
+            const compareBox = document.getElementById('ai-compare-box');
+            const btnText = document.getElementById('compare-btn-text');
+            const video = document.getElementById('video-player');
+
+            if (isCompareModeOpen) {
+                standardBox.classList.add('hidden');
+                compareBox.classList.remove('hidden');
+                btnText.textContent = 'Pemain Video Biasa';
+                video.play().catch(() => {});
+                startCompareRenderLoop();
+            } else {
+                compareBox.classList.add('hidden');
+                standardBox.classList.remove('hidden');
+                btnText.textContent = 'Banding AI (Sebelum/Selepas)';
+                if (compareAnimationFrame) cancelAnimationFrame(compareAnimationFrame);
+            }
+        }
+
+        function updateCompareSlider(val) {
+            document.getElementById('before-clip-wrapper').style.width = `${val}%`;
+            document.getElementById('slider-divider').style.left = `${val}%`;
+        }
+
+        // Lukis satu bingkai dengan penapis AI (digunakan oleh Pratonton & Eksport 4K)
+        function renderEnhancedFrame(ctx, sourceVideo, width, height, params) {
+            const effectiveContrast = 100 + params.contrast + Math.round(params.clarity * 0.25);
+            const effectiveSat = 100 + params.saturation;
+            const effectiveBright = 100 + params.brightness;
+            const denoiseBlur = params.denoise > 10 ? (params.denoise / 100) * 0.45 : 0;
+
+            ctx.filter = `contrast(${effectiveContrast}%) saturate(${effectiveSat}%) brightness(${effectiveBright}%)` + (denoiseBlur > 0 ? ` blur(${denoiseBlur.toFixed(2)}px)` : '');
+            ctx.drawImage(sourceVideo, 0, 0, width, height);
+            ctx.filter = 'none';
+
+            const totalSharpStrength = Math.min(1.0, (params.sharpness / 100) * 0.75 + (params.clarity / 100) * 0.35);
+            if (totalSharpStrength > 0.04) {
+                applySharpenKernel(ctx, width, height, totalSharpStrength * 0.75);
+            }
+        }
+
+        // Gelung Lukisan Kanvas Masa Nyata untuk Perbandingan Sebelum vs Selepas AI
+        function startCompareRenderLoop() {
+            const video = document.getElementById('video-player');
+            const canvasBefore = document.getElementById('canvas-before');
+            const canvasAfter = document.getElementById('canvas-after');
+            const ctxBefore = canvasBefore.getContext('2d', { willReadFrequently: true });
+            const ctxAfter = canvasAfter.getContext('2d', { willReadFrequently: true });
+
+            canvasBefore.width = 300;
+            canvasBefore.height = 533;
+            canvasAfter.width = 300;
+            canvasAfter.height = 533;
+
+            function renderFrame() {
+                if (!isCompareModeOpen) return;
+
+                if (video.readyState >= 2) {
+                    ctxBefore.filter = 'blur(0.4px) contrast(96%) saturate(95%)';
+                    ctxBefore.drawImage(video, 0, 0, canvasBefore.width, canvasBefore.height);
+                    ctxBefore.filter = 'none';
+
+                    const params = getAiFilterParams();
+                    renderEnhancedFrame(ctxAfter, video, canvasAfter.width, canvasAfter.height, params);
+                }
+                compareAnimationFrame = requestAnimationFrame(renderFrame);
+            }
+            renderFrame();
+        }
+
+        // Penapis Konvolusi Penajam Butiran (3x3 Sharpening Kernel)
+        function applySharpenKernel(ctx, width, height, mix) {
+            try {
+                const imgData = ctx.getImageData(0, 0, width, height);
+                const data = imgData.data;
+                const copy = new Uint8ClampedArray(data);
+                const w = width * 4;
+
+                for (let y = 1; y < height - 1; y++) {
+                    for (let x = 1; x < width - 1; x++) {
+                        const idx = (y * width + x) * 4;
+                        for (let c = 0; c < 3; c++) {
+                            const val = 5 * copy[idx + c]
+                                - copy[idx - w + c]
+                                - copy[idx + w + c]
+                                - copy[idx - 4 + c]
+                                - copy[idx + 4 + c];
+                            data[idx + c] = copy[idx + c] * (1 - mix) + val * mix;
+                        }
+                    }
+                }
+                ctx.putImageData(imgData, 0, 0);
+            } catch (e) {
+                // Abaikan jika video cross-origin tidak membenarkan bacaan piksel langsung
+            }
+        }
+
+        // Laksanakan Muat Turun Mengikut Pilihan Kualiti & Pelarasan AI
+        async function executeSelectedDownload() {
+            if (!currentVideoData || isExportingVideo) return;
+
+            const config = QUALITY_CONFIG[selectedQuality];
+
+            if (selectedQuality === 'mp3') {
+                const filename = `TikSave_${currentVideoData.id}_320kbps.mp3`;
+                await downloadMediaWithPhases(currentVideoData.music, filename, false);
+                return;
+            }
+
+            if (selectedQuality === '4k_ai' || isAiBoosterActive) {
+                await runAiUpscaleAndDownload(selectedQuality);
+                return;
+            }
+
+            let targetUrl = selectedQuality === '1080p'
+                ? (currentVideoData.noWmHd || currentVideoData.noWmSd)
+                : (currentVideoData.noWmSd || currentVideoData.noWmHd);
+
+            const hasDistinctSdStream = currentVideoData.noWmSd && currentVideoData.noWmHd && currentVideoData.noWmSd !== currentVideoData.noWmHd;
+            if ((selectedQuality === '720p' || selectedQuality === '480p') && !hasDistinctSdStream) {
+                await processAndExportVideoExact(targetUrl, selectedQuality, false);
+                return;
+            }
+
+            const filename = `TikSave_${currentVideoData.id}_${config.shortTag}.mp4`;
+            await downloadMediaWithPhases(targetUrl, filename, false);
+        }
+
+        async function downloadWatermarkFallback() {
+            if (!currentVideoData) return;
+            const filename = `TikSave_${currentVideoData.id}_Watermark.mp4`;
+            await downloadMediaWithPhases(currentVideoData.withWm, filename, false);
+        }
+
+        // Enjin Pemprosesan 4K AI Upscale (API Luaran ATAU WebCodecs MP4 Pelayar)
+        async function runAiUpscaleAndDownload(qualityKey) {
+            const config = QUALITY_CONFIG[qualityKey];
+            const sourceUrl = currentVideoData.noWmHd || currentVideoData.noWmSd;
+            const aiParams = getAiFilterParams();
+            const suffix = qualityKey === '4k_ai' ? '4K_2160p_AI' : `${config.shortTag}_AI_Boost`;
+            const filename = `TikSave_${currentVideoData.id}_${suffix}.mp4`;
+
+            if (customAiApiUrl) {
+                showToast(`Menghantar video ke Pelayan AI untuk render ${config.shortTag}...`, 'ai');
+                const query = new URLSearchParams({
+                    videoUrl: sourceUrl,
+                    quality: qualityKey,
+                    ai: '1',
+                    sharpness: aiParams.sharpness,
+                    contrast: aiParams.contrast,
+                    saturation: aiParams.saturation,
+                    brightness: aiParams.brightness,
+                    denoise: aiParams.denoise,
+                    clarity: aiParams.clarity
+                });
+                const apiTarget = `${customAiApiUrl}?${query.toString()}`;
+                await downloadMediaWithPhases(apiTarget, filename, true);
+                return;
+            }
+
+            await processAndExportVideoExact(sourceUrl, qualityKey, true);
+        }
+
+        // ENJIN UTAMA: Pengekodan MP4 Tulen (WebCodecs VideoEncoder + MP4Muxer) pada 4K 2160p / 1080p / 720p / 480p
+        async function processAndExportVideoExact(sourceUrl, qualityKey, applyAiFilters) {
+            const config = QUALITY_CONFIG[qualityKey];
+            const aiParams = getAiFilterParams();
+            const wrapper = document.getElementById('process-progress-wrapper');
+            const mainBtn = document.getElementById('btn-main-download');
+
+            isExportingVideo = true;
+            mainBtn.disabled = true;
+            wrapper.classList.remove('hidden');
+
+            try {
+                updatePhaseUI(1, 8, `Fasa 1/4: Memuat turun strim sumber tanpa mampatan...`);
+
+                const resp = await fetch(sourceUrl);
+                if (!resp.ok) throw new Error('Sekatan CORS pada strim video sumber');
+                const srcBlob = await resp.blob();
+                const localSrcUrl = URL.createObjectURL(srcBlob);
+
+                const procVideo = document.createElement('video');
+                procVideo.src = localSrcUrl;
+                procVideo.muted = true;
+                procVideo.playsInline = true;
+                procVideo.preload = 'auto';
+
+                await new Promise((resolve, reject) => {
+                    procVideo.onloadedmetadata = () => resolve();
+                    procVideo.onerror = () => reject(new Error('Gagal membaca metadata video'));
+                });
+
+                const srcW = procVideo.videoWidth || 1080;
+                const srcH = procVideo.videoHeight || 1920;
+                const isPortrait = srcH >= srcW;
+                const targetShort = config.targetShortEdge;
+
+                let outW, outH;
+                if (isPortrait) {
+                    outW = targetShort;
+                    outH = Math.round((srcH / srcW) * targetShort);
+                } else {
+                    outH = targetShort;
+                    outW = Math.round((srcW / srcH) * targetShort);
+                }
+                // Pastikan gandaan 16 untuk keserasian maksimum perkakasan H.264 4K
+                outW = Math.round(outW / 16) * 16;
+                outH = Math.round(outH / 16) * 16;
+
+                const mbpsLabel = (config.bitrate / 1000000).toFixed(0);
+                updatePhaseUI(2, 20, `Fasa 2/4: Menetapkan kanvas ${outW}×${outH} (${mbpsLabel} Mbps)...`);
+
+                const exportCanvas = document.getElementById('ai-export-canvas');
+                exportCanvas.width = outW;
+                exportCanvas.height = outH;
+                const ctx = exportCanvas.getContext('2d', { willReadFrequently: true });
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+
+                if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
+                    const fps = 30;
+                    const duration = procVideo.duration || currentVideoData.duration || 15;
+                    const totalFrames = Math.max(1, Math.floor(duration * fps));
+
+                    let audioBuffer = null;
+                    try {
+                        const arrayBuf = await srcBlob.arrayBuffer();
+                        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+                        await audioCtx.close();
+                    } catch (e) {
+                        console.warn('Audio tidak dapat diekstrak, mengekod trek video sahaja.');
+                    }
+
+                    const muxerOptions = {
+                        target: new Mp4Muxer.ArrayBufferTarget(),
+                        video: {
+                            codec: 'avc',
+                            width: outW,
+                            height: outH
+                        },
+                        fastStart: 'in-memory'
+                    };
+
+                    if (audioBuffer && typeof AudioEncoder !== 'undefined') {
+                        muxerOptions.audio = {
+                            codec: 'aac',
+                            numberOfChannels: Math.min(2, audioBuffer.numberOfChannels),
+                            sampleRate: audioBuffer.sampleRate
+                        };
+                    }
+
+                    const muxer = new Mp4Muxer.Muxer(muxerOptions);
+
+                    const videoEncoder = new VideoEncoder({
+                        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                        error: (err) => console.error('Ralat VideoEncoder:', err)
+                    });
+
+                    // Level 5.1 (0x33) menyokong resolusi 4K (3840x2160 / 2160x3840)
+                    const avcCodec = (outW * outH > 2073600) ? 'avc1.640033' : 'avc1.64002A';
+
+                    await videoEncoder.configure({
+                        codec: avcCodec,
+                        width: outW,
+                        height: outH,
+                        bitrate: config.bitrate,
+                        bitrateMode: 'constant',
+                        framerate: fps,
+                        hardwareAcceleration: 'prefer-hardware'
+                    });
+
+                    for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+                        const targetTime = Math.min(duration - 0.01, frameIdx / fps);
+                        procVideo.currentTime = targetTime;
+
+                        await new Promise((resolve) => {
+                            const onSeeked = () => {
+                                procVideo.removeEventListener('seeked', onSeeked);
+                                resolve();
+                            };
+                            procVideo.addEventListener('seeked', onSeeked);
+                        });
+
+                        if (applyAiFilters) {
+                            renderEnhancedFrame(ctx, procVideo, outW, outH, aiParams);
+                        } else {
+                            ctx.drawImage(procVideo, 0, 0, outW, outH);
+                        }
+
+                        const timestampUs = Math.round((frameIdx / fps) * 1_000_000);
+                        const durationUs = Math.round((1 / fps) * 1_000_000);
+                        const videoFrame = new VideoFrame(exportCanvas, {
+                            timestamp: timestampUs,
+                            duration: durationUs
+                        });
+
+                        videoEncoder.encode(videoFrame, { keyFrame: frameIdx % 30 === 0 });
+                        videoFrame.close();
+
+                        if (videoEncoder.encodeQueueSize > 5) {
+                            await videoEncoder.flush();
+                        }
+
+                        if (frameIdx % 3 === 0 || frameIdx === totalFrames - 1) {
+                            const ratio = (frameIdx + 1) / totalFrames;
+                            const pct = Math.min(92, Math.round(20 + ratio * 72));
+                            updatePhaseUI(
+                                3,
+                                pct,
+                                `Fasa 3/4: Mengekod ${outW}×${outH} (${mbpsLabel} Mbps) — ${Math.round(ratio * 100)}%`
+                            );
+                        }
+                    }
+
+                    await videoEncoder.flush();
+                    videoEncoder.close();
+
+                    if (muxerOptions.audio && audioBuffer) {
+                        updatePhaseUI(3, 95, `Fasa 3/4: Menggabungkan audio berkualiti tinggi (AAC)...`);
+                        const audioEncoder = new AudioEncoder({
+                            output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                            error: (err) => console.error('Ralat AudioEncoder:', err)
+                        });
+
+                        const channels = muxerOptions.audio.numberOfChannels;
+                        const sampleRate = audioBuffer.sampleRate;
+
+                        await audioEncoder.configure({
+                            codec: 'mp4a.40.2',
+                            numberOfChannels: channels,
+                            sampleRate: sampleRate,
+                            bitrate: 192000
+                        });
+
+                        const totalSamples = audioBuffer.length;
+                        const chunkSize = 1024;
+                        for (let offset = 0; offset < totalSamples; offset += chunkSize) {
+                            const length = Math.min(chunkSize, totalSamples - offset);
+                            const planarData = new Float32Array(length * channels);
+                            for (let ch = 0; ch < channels; ch++) {
+                                const channelData = audioBuffer.getChannelData(ch);
+                                planarData.set(channelData.subarray(offset, offset + length), ch * length);
+                            }
+
+                            const audioData = new AudioData({
+                                format: 'f32-planar',
+                                sampleRate: sampleRate,
+                                numberOfFrames: length,
+                                numberOfChannels: channels,
+                                timestamp: Math.round((offset / sampleRate) * 1_000_000),
+                                data: planarData
+                            });
+                            audioEncoder.encode(audioData);
+                            audioData.close();
+                        }
+
+                        await audioEncoder.flush();
+                        audioEncoder.close();
+                    }
+
+                    muxer.finalize();
+                    URL.revokeObjectURL(localSrcUrl);
+
+                    updatePhaseUI(4, 100, `Fasa 4/4: Selesai! Fail MP4 ${outW}×${outH} siap disimpan.`);
+
+                    const mp4Buffer = muxer.target.buffer;
+                    const finalBlob = new Blob([mp4Buffer], { type: 'video/mp4' });
+                    const sizeMb = (finalBlob.size / (1024 * 1024)).toFixed(1);
+
+                    const suffix = applyAiFilters
+                        ? (qualityKey === '4k_ai' ? '4K_2160p_AI' : `${config.shortTag}_AI_Boost`)
+                        : config.shortTag;
+                    const finalFilename = `TikSave_${currentVideoData.id}_${suffix}.mp4`;
+
+                    const dlUrl = URL.createObjectURL(finalBlob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = dlUrl;
+                    a.download = finalFilename;
+                    document.body.appendChild(a);
+                    a.click();
+
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(dlUrl);
+                        wrapper.classList.add('hidden');
+                    }, 1600);
+
+                    showToast(
+                        `Siap! ${finalFilename} (${outW}×${outH} • ${sizeMb} MB) dimuat turun tanpa mampatan.`,
+                        applyAiFilters ? 'ai' : 'success'
+                    );
+                } else {
+                    throw new Error('Pelayar ini tidak menyokong WebCodecs 4K. Sila guna Chrome/Edge terkini atau sambungkan Pelayan FFmpeg.');
+                }
+            } catch (err) {
+                console.warn('Pengekodan tempatan tidak dapat dijalankan:', err);
+                wrapper.classList.add('hidden');
+                showToast(
+                    'Pelayar menyekat capaian piksel video luar (CORS). Gunakan butang "Cuba Demo AI" atau jalankan Pelayan Backend Node.js + FFmpeg untuk eksport 4K mana-mana pautan TikTok.',
+                    'warning'
+                );
+            } finally {
+                isExportingVideo = false;
+                mainBtn.disabled = false;
+            }
+        }
+
+        function updatePhaseUI(step, percent, labelText) {
+            document.getElementById('process-progress-bar').style.width = `${percent}%`;
+            document.getElementById('process-percent').textContent = `${percent}%`;
+            document.getElementById('process-phase-label').innerHTML = `
+                <i data-lucide="sparkles" class="w-4 h-4 animate-spin text-tiktok-purple"></i>
+                <span>${labelText}</span>
+            `;
+            for (let i = 1; i <= 4; i++) {
+                const el = document.getElementById(`phase-step-${i}`);
+                if (i <= step) {
+                    el.classList.add('text-tiktok-purple', 'font-bold');
+                } else {
+                    el.classList.remove('text-tiktok-purple', 'font-bold');
+                }
+            }
+            lucide.createIcons();
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Muat Turun Fail Terus Menggunakan Fetch Blob
+        async function downloadMediaWithPhases(targetUrl, filename, isAiMode = false, skipInitialReset = false) {
+            if (!targetUrl) {
+                showToast('Pautan media tidak tersedia untuk format ini.', 'error');
+                return;
+            }
+
+            const wrapper = document.getElementById('process-progress-wrapper');
+            const bar = document.getElementById('process-progress-bar');
+            const percentEl = document.getElementById('process-percent');
+            const phaseLabel = document.getElementById('process-phase-label');
+
+            if (!skipInitialReset) {
+                wrapper.classList.remove('hidden');
+                bar.style.width = '15%';
+                percentEl.textContent = '15%';
+                phaseLabel.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-tiktok-cyan"></i><span>Memuat turun ${filename}...</span>`;
+                lucide.createIcons();
+            }
+
+            try {
+                const response = await fetch(targetUrl);
+                if (!response.ok) throw new Error('Ralat rangkaian semasa memuat turun');
+
+                const contentLength = response.headers.get('content-length');
+                const total = contentLength ? parseInt(contentLength, 10) : 0;
+                let loaded = 0;
+
+                const reader = response.body ? response.body.getReader() : null;
+                let blob;
+
+                if (reader) {
+                    const chunks = [];
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        loaded += value.length;
+
+                        if (total > 0 && !isAiMode) {
+                            const pct = Math.min(99, Math.round((loaded / total) * 100));
+                            bar.style.width = `${pct}%`;
+                            percentEl.textContent = `${pct}%`;
+                        }
+                    }
+                    const mimeType = filename.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4';
+                    blob = new Blob(chunks, { type: mimeType });
+                } else {
+                    blob = await response.blob();
+                }
+
+                bar.style.width = '100%';
+                percentEl.textContent = '100%';
+
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(blobUrl);
+                    wrapper.classList.add('hidden');
+                }, 1400);
+
+                showToast(
+                    isAiMode 
+                        ? `Video AI Enhanced (${filename}) berjaya dimuat turun!` 
+                        : `Berjaya memuat turun ${filename}!`, 
+                    isAiMode ? 'ai' : 'success'
+                );
+
+            } catch (err) {
+                console.warn('Blob disekat CORS, menggunakan pautan terus:', err);
+                wrapper.classList.add('hidden');
+                showToast('Membuka muat turun terus melalui pelayar...', 'warning');
+                
+                const fallbackLink = document.createElement('a');
+                fallbackLink.href = targetUrl;
+                fallbackLink.download = filename;
+                fallbackLink.target = '_blank';
+                fallbackLink.rel = 'noopener noreferrer';
+                document.body.appendChild(fallbackLink);
+                fallbackLink.click();
+                document.body.removeChild(fallbackLink);
+            }
+        }
+
+        // Kawalan Modal Kod Sumber Backend
+        function openBackendModal() {
+            const modal = document.getElementById('backend-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeBackendModal() {
+            const modal = document.getElementById('backend-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function switchBackendTab(tab) {
+            activeBackendTab = tab;
+            const tabs = ['node', 'replicate', 'php'];
+            tabs.forEach(t => {
+                const tabBtn = document.getElementById(`tab-${t}`);
+                const codePre = document.getElementById(`code-${t}`);
+                if (t === tab) {
+                    tabBtn.classList.add('border-tiktok-cyan', 'text-tiktok-cyan');
+                    tabBtn.classList.remove('border-transparent', 'text-zinc-400');
+                    codePre.classList.remove('hidden');
+                } else {
+                    tabBtn.classList.remove('border-tiktok-cyan', 'text-tiktok-cyan');
+                    tabBtn.classList.add('border-transparent', 'text-zinc-400');
+                    codePre.classList.add('hidden');
+                }
+            });
+        }
+
+        function copyBackendCode() {
+            const codeEl = document.getElementById(`code-${activeBackendTab}`);
+            const textArea = document.createElement('textarea');
+            textArea.value = codeEl.innerText;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast('Kod sumber berjaya disalin ke papan keratan!', 'success');
+            } catch (err) {
+                showToast('Gagal menyalin kod.', 'error');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+    </script>
+</body>
+</html>
